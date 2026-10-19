@@ -1,10 +1,9 @@
 $ErrorActionPreference = "Stop"
 
 $root = "c:\Users\Administrator\Desktop\winrarproject"
-$tempDir = Join-Path $root "temp_portable_pack"
+$tempDir = Join-Path $env:TEMP ("viberar_pack_" + [System.Guid]::NewGuid().ToString("N"))
 $zipOut = Join-Path $root "VibeRAR_Portable_v1.1.0.zip"
 
-if (Test-Path $tempDir) { Remove-Item $tempDir -Recurse -Force }
 New-Item -ItemType Directory -Force -Path $tempDir | Out-Null
 
 Copy-Item (Join-Path $root "VibeRAR_Portable.exe") $tempDir

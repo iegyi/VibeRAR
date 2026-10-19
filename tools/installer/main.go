@@ -267,14 +267,15 @@ func setRegString(subKey, valueName, value string) error {
 	return nil
 }
 
-func createShortcut(shortcutPath, targetPath, workingDir, description string) {
+func createShortcut(shortcutPath, targetPath, workingDir, description, iconPath string) {
 	vbs := fmt.Sprintf(`Set w = CreateObject("WScript.Shell")
 Set s = w.CreateShortcut("%s")
 s.TargetPath = "%s"
 s.WorkingDirectory = "%s"
 s.Description = "%s"
+s.IconLocation = "%s,0"
 s.Save
-`, shortcutPath, targetPath, workingDir, description)
+`, shortcutPath, targetPath, workingDir, description, iconPath)
 
 	tmpVbs := filepath.Join(os.TempDir(), "viberar_sc.vbs")
 	if err := os.WriteFile(tmpVbs, []byte(vbs), 0644); err == nil {
@@ -625,13 +626,13 @@ func applyStep2AndContinue() {
 	if isDesktop {
 		desktopDir := filepath.Join(os.Getenv("USERPROFILE"), "Desktop")
 		shortcutPath := filepath.Join(desktopDir, "VibeRAR.lnk")
-		createShortcut(shortcutPath, targetExe, installPath, "VibeRAR - High Performance Archive Manager")
+		createShortcut(shortcutPath, targetExe, installPath, "VibeRAR - High Performance Archive Manager", iconIco)
 	}
 
 	if isStartMenu {
 		startMenuDir := filepath.Join(os.Getenv("APPDATA"), "Microsoft", "Windows", "Start Menu", "Programs")
 		shortcutPath := filepath.Join(startMenuDir, "VibeRAR.lnk")
-		createShortcut(shortcutPath, targetExe, installPath, "VibeRAR - High Performance Archive Manager")
+		createShortcut(shortcutPath, targetExe, installPath, "VibeRAR - High Performance Archive Manager", iconIco)
 	}
 
 	// Register in Windows App Paths using pure Win32 Registry APIs (ZERO command prompt)
