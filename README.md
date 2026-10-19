@@ -47,9 +47,10 @@
 
 ## 📦 Download & Installation
 
-Visit the [**Releases**](https://github.com/iegyi/VibeRAR/releases) page to download:
-* **`VibeRAR_Setup.exe`**: Full Win32 setup wizard with automatic context menu registration, file association setup, and start menu shortcuts.
-* **`VibeRAR_Portable.exe`**: Zero-install standalone executable ready to run anywhere.
+You can download the latest compiled executables directly:
+* 📥 [**Download VibeRAR_Setup.exe** (Installer with Context Menus)](https://github.com/iegyi/VibeRAR/raw/main/VibeRAR_Setup.exe)
+* 📥 [**Download VibeRAR_Portable.exe** (Standalone No-Install)](https://github.com/iegyi/VibeRAR/raw/main/VibeRAR_Portable.exe)
+* Or visit the [**Releases**](https://github.com/iegyi/VibeRAR/releases) page for zipped packages.
 
 ---
 
