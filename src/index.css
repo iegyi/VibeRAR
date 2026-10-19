@@ -1,0 +1,126 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    box-sizing: border-box;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body {
+    font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, "Segoe UI Emoji", Tahoma, sans-serif;
+    color: #1a1a1a;
+    background-color: #f0f0f0;
+    user-select: none;
+    overflow: hidden;
+  }
+}
+
+/* Authentic Windows bevels and borders */
+.winrar-window {
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+  border: 1px solid #707070;
+}
+
+.winrar-sunken {
+  border: 1px solid #7f9db9;
+  background-color: #ffffff;
+  box-shadow: inset 1px 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.winrar-panel-border {
+  border: 1px solid #dcdcdc;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+
+.winrar-btn {
+  border: 1px solid #ababab;
+  background: linear-gradient(180deg, #f2f2f2 0%, #ebebeb 50%, #cfcfcf 100%);
+  border-radius: 3px;
+  transition: all 0.1s ease;
+}
+
+.winrar-btn:hover {
+  border-color: #3c7fb1;
+  background: linear-gradient(180deg, #eaf6fd 0%, #d9f0fc 50%, #bee6fd 100%);
+  box-shadow: 0 0 3px rgba(60, 127, 177, 0.5);
+}
+
+.winrar-btn:active {
+  background: linear-gradient(180deg, #c2e4f6 0%, #cae7f7 50%, #a6d9f4 100%);
+  border-color: #2c628b;
+  box-shadow: inset 1px 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+/* WinRAR Toolbar Button */
+.winrar-tool-btn {
+  position: relative;
+  border-radius: 4px;
+  border: 1px solid transparent;
+  transition: all 0.15s ease-out;
+}
+
+.winrar-tool-btn:hover {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.9) 0%, rgba(220, 235, 252, 0.8) 100%);
+  border-color: #7da2ce;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.winrar-tool-btn:active {
+  background: linear-gradient(180deg, #d3e5f7 0%, #bad5f2 100%);
+  border-color: #5c87b8;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.15);
+}
+
+/* Status Bar Separator */
+.winrar-status-panel {
+  border-right: 1px solid #ffffff;
+  box-shadow: inset -1px 0 0 #b0b0b0;
+}
+
+/* Scrollbar customization */
+::-webkit-scrollbar {
+  width: 14px;
+  height: 14px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-left: 1px solid #e0e0e0;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cdcdcd;
+  border: 2px solid #f1f1f1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #a6a6a6;
+}
+
+/* Modern Pulse Animation */
+@keyframes stripe-progress {
+  from {
+    background-position: 0 0;
+  }
+  to {
+    background-position: 30px 0;
+  }
+}
+
+.animated-progress-bar {
+  background-image: linear-gradient(
+    45deg,
+    rgba(255, 255, 255, 0.25) 25%,
+    transparent 25%,
+    transparent 50%,
+    rgba(255, 255, 255, 0.25) 50%,
+    rgba(255, 255, 255, 0.25) 75%,
+    transparent 75%,
+    transparent
+  );
+  background-size: 20px 20px;
+  animation: stripe-progress 1s linear infinite;
+}
