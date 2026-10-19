@@ -23,6 +23,7 @@ thumbs.db
 desktop.ini
 *.exe
 *.exe~
+VibeRAR_*.zip
 tools/installer/payload.exe
 
 # Temporary scratch & test directories
