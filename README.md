@@ -47,7 +47,7 @@
 
 ## 📦 Download & Installation
 
-Visit the [**Releases**](https://github.com/YOUR_USERNAME/VibeRAR/releases) page to download:
+Visit the [**Releases**](https://github.com/iegyi/VibeRAR/releases) page to download:
 * **`VibeRAR_Setup.exe`**: Full Win32 setup wizard with automatic context menu registration, file association setup, and start menu shortcuts.
 * **`VibeRAR_Portable.exe`**: Zero-install standalone executable ready to run anywhere.
 
@@ -63,7 +63,7 @@ Visit the [**Releases**](https://github.com/YOUR_USERNAME/VibeRAR/releases) page
 
 1. **Clone the repository**:
    ```bash
-   git clone https://github.com/YOUR_USERNAME/VibeRAR.git
+   git clone https://github.com/iegyi/VibeRAR.git
    cd VibeRAR
    ```
 
