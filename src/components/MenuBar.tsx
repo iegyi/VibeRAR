@@ -190,8 +190,21 @@ export const MenuBar: React.FC = () => {
     ],
     Help: [
       {
+        label: 'Check for updates...',
+        action: () => openModal('update')
+      },
+      {
+        label: 'Repair Windows 11 Context Menu...',
+        action: () => openModal('update')
+      },
+      { divider: true, label: '' },
+      {
         label: 'VibeRAR Homepage (ahmedsamir.com)',
         action: () => window.open('https://ahmedsamir.com', '_blank')
+      },
+      {
+        label: 'GitHub Repository (Releases & Issues)',
+        action: () => window.open('https://github.com/iegyi/VibeRAR', '_blank')
       },
       {
         label: 'Buy Cheap Hosting (0webhost.com)',

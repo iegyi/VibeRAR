@@ -17,6 +17,7 @@ import { RepairModal } from './components/modals/RepairModal';
 import { FindModal } from './components/modals/FindModal';
 import { WizardModal } from './components/modals/WizardModal';
 import { AboutModal } from './components/modals/AboutModal';
+import { UpdateModal } from './components/modals/UpdateModal';
 import { useArchiveStore } from './store/useArchiveStore';
 
 export const App: React.FC = () => {
@@ -178,6 +179,7 @@ export const App: React.FC = () => {
       <FindModal />
       <WizardModal />
       <AboutModal />
+      <UpdateModal />
     </div>
   );
 };

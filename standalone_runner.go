@@ -31,6 +31,7 @@ var distFS embed.FS
 var (
 	user32                       = syscall.NewLazyDLL("user32.dll")
 	shell32                      = syscall.NewLazyDLL("shell32.dll")
+	advapi32                     = syscall.NewLazyDLL("advapi32.dll")
 	procEnumWindows              = user32.NewProc("EnumWindows")
 	procGetWindowThreadProcessId = user32.NewProc("GetWindowThreadProcessId")
 	procSetWindowTextW           = user32.NewProc("SetWindowTextW")
@@ -38,6 +39,9 @@ var (
 	procGetWindowTextW           = user32.NewProc("GetWindowTextW")
 	procShellExecuteW            = shell32.NewProc("ShellExecuteW")
 	procSHChangeNotify           = shell32.NewProc("SHChangeNotify")
+	procRegCreateKeyExW          = advapi32.NewProc("RegCreateKeyExW")
+	procRegSetValueExW           = advapi32.NewProc("RegSetValueExW")
+	procRegCloseKey              = advapi32.NewProc("RegCloseKey")
 	lastHeartbeat                int64
 )
 
@@ -45,7 +49,155 @@ const (
 	SHCNE_ASSOCCHANGED = 0x08000000
 	SHCNF_IDLIST       = 0x0000
 	SHCNF_FLUSH        = 0x1000
+	HKEY_CURRENT_USER  = uintptr(0x80000001)
+	KEY_WRITE          = 0x20006
+	REG_SZ             = 1
+	AppVersion         = "v1.1.0"
 )
+
+func setRegString(subKey, valueName, value string) error {
+	var hKey uintptr
+	var disp uint32
+	subKeyPtr := utf16Ptr(subKey)
+	ret, _, _ := procRegCreateKeyExW.Call(
+		HKEY_CURRENT_USER,
+		uintptr(unsafe.Pointer(subKeyPtr)),
+		0, 0, 0,
+		KEY_WRITE,
+		0,
+		uintptr(unsafe.Pointer(&hKey)),
+		uintptr(unsafe.Pointer(&disp)),
+	)
+	if ret != 0 {
+		return fmt.Errorf("RegCreateKeyExW error: %d", ret)
+	}
+	defer procRegCloseKey.Call(hKey)
+
+	valBytes, _ := syscall.UTF16FromString(value)
+	var valNamePtr *uint16
+	if valueName != "" {
+		valNamePtr = utf16Ptr(valueName)
+	}
+	procRegSetValueExW.Call(
+		hKey,
+		uintptr(unsafe.Pointer(valNamePtr)),
+		0,
+		REG_SZ,
+		uintptr(unsafe.Pointer(&valBytes[0])),
+		uintptr(len(valBytes)*2),
+	)
+	return nil
+}
+
+func refreshWindowsExplorer() {
+	cmd := exec.Command("powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command",
+		"Stop-Process -Name explorer -Force -ErrorAction SilentlyContinue; Start-Sleep -Milliseconds 400; Start-Process explorer")
+	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true, CreationFlags: 0x08000000}
+	_ = cmd.Run()
+}
+
+func ensureWindows11ContextMenu() error {
+	if runtime.GOOS != "windows" {
+		return nil
+	}
+
+	exePath, err := os.Executable()
+	if err != nil {
+		return err
+	}
+	installDir := filepath.Dir(exePath)
+
+	shellDll := filepath.Join(installDir, "viberar_shell.dll")
+	if _, err := os.Stat(shellDll); os.IsNotExist(err) {
+		fallbackDir := filepath.Join(os.Getenv("ProgramFiles"), "VibeRAR")
+		if _, err := os.Stat(filepath.Join(fallbackDir, "viberar_shell.dll")); err == nil {
+			installDir = fallbackDir
+			shellDll = filepath.Join(fallbackDir, "viberar_shell.dll")
+		} else {
+			return fmt.Errorf("viberar_shell.dll not found")
+		}
+	}
+
+	// 1. Ensure COM CLSID registration in HKCU
+	clsidKey := `Software\Classes\CLSID\{b09a765d-05a3-4c4f-835e-5c87336ee000}`
+	_ = setRegString(clsidKey, "", "VibeRAR Modern Shell Command")
+	_ = setRegString(clsidKey+`\InProcServer32`, "", shellDll)
+	_ = setRegString(clsidKey+`\InProcServer32`, "ThreadingModel", "Apartment")
+
+	// 2. Ensure Certificate is in TrustedPeople
+	cerPath := filepath.Join(installDir, "VibeRAR.cer")
+	if _, err := os.Stat(cerPath); err == nil {
+		cmdCertUtil := exec.Command("certutil.exe", "-user", "-addstore", "-f", "TrustedPeople", cerPath)
+		cmdCertUtil.SysProcAttr = &syscall.SysProcAttr{HideWindow: true, CreationFlags: 0x08000000}
+		_ = cmdCertUtil.Run()
+	}
+
+	// 3. Ensure Sparse Package is registered
+	msixPath := filepath.Join(installDir, "VibeRAR.identity.msix")
+	if _, err := os.Stat(msixPath); err == nil {
+		regCmd := exec.Command("powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command",
+			fmt.Sprintf(`Add-AppxPackage -Path '%s' -ExternalLocation '%s' -ErrorAction SilentlyContinue`, msixPath, installDir))
+		regCmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true, CreationFlags: 0x08000000}
+		_ = regCmd.Run()
+	}
+
+	notifyShell()
+	return nil
+}
+
+type GitHubAsset struct {
+	Name               string `json:"name"`
+	Size               int64  `json:"size"`
+	BrowserDownloadURL string `json:"browser_download_url"`
+}
+
+type GitHubReleaseInfo struct {
+	TagName     string        `json:"tag_name"`
+	Name        string        `json:"name"`
+	Body        string        `json:"body"`
+	HTMLURL     string        `json:"html_url"`
+	PublishedAt string        `json:"published_at"`
+	Assets      []GitHubAsset `json:"assets"`
+}
+
+var (
+	updateDownloadStatus  = "idle"
+	updateDownloadPercent = 0
+	updateDownloadBytes   int64
+	updateDownloadTotal   int64
+	updateDownloadErr     = ""
+)
+
+func parseVersionNums(v string) (int, int, int) {
+	v = strings.TrimPrefix(strings.TrimSpace(v), "v")
+	parts := strings.Split(v, ".")
+	var maj, min, pat int
+	if len(parts) > 0 {
+		fmt.Sscanf(parts[0], "%d", &maj)
+	}
+	if len(parts) > 1 {
+		fmt.Sscanf(parts[1], "%d", &min)
+	}
+	if len(parts) > 2 {
+		fmt.Sscanf(parts[2], "%d", &pat)
+	}
+	return maj, min, pat
+}
+
+func isVersionNewer(latest, current string) bool {
+	lMaj, lMin, lPat := parseVersionNums(latest)
+	cMaj, cMin, cPat := parseVersionNums(current)
+	if lMaj > cMaj {
+		return true
+	}
+	if lMaj == cMaj && lMin > cMin {
+		return true
+	}
+	if lMaj == cMaj && lMin == cMin && lPat > cPat {
+		return true
+	}
+	return false
+}
 
 func notifyShell() {
 	procSHChangeNotify.Call(
@@ -658,6 +810,9 @@ func main() {
 	}
 	port := listener.Addr().(*net.TCPAddr).Port
 
+	// Automatically ensure Windows 11 context menu is healthy for installed copies
+	go ensureWindows11ContextMenu()
+
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/api/ping", func(w http.ResponseWriter, r *http.Request) {
@@ -800,6 +955,185 @@ func main() {
 		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"success": true,
 			"entries": entries,
+		})
+	})
+
+	// /api/check-update - Check GitHub Releases for newer version
+	mux.HandleFunc("/api/check-update", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		client := &http.Client{Timeout: 8 * time.Second}
+		req, err := http.NewRequest("GET", "https://api.github.com/repos/iegyi/VibeRAR/releases/latest", nil)
+		if err != nil {
+			http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusInternalServerError)
+			return
+		}
+		req.Header.Set("User-Agent", "VibeRAR-App/"+AppVersion)
+		req.Header.Set("Accept", "application/vnd.github.v3+json")
+
+		resp, err := client.Do(req)
+		if err != nil {
+			http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusServiceUnavailable)
+			return
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			http.Error(w, fmt.Sprintf(`{"error":"GitHub returned HTTP %d"}`, resp.StatusCode), resp.StatusCode)
+			return
+		}
+
+		var rel GitHubReleaseInfo
+		if err := json.NewDecoder(resp.Body).Decode(&rel); err != nil {
+			http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusInternalServerError)
+			return
+		}
+
+		downloadURL := ""
+		assetName := ""
+		var assetSize int64
+
+		for _, a := range rel.Assets {
+			if strings.HasSuffix(strings.ToLower(a.Name), ".exe") {
+				downloadURL = a.BrowserDownloadURL
+				assetName = a.Name
+				assetSize = a.Size
+				break
+			}
+		}
+
+		hasUpdate := isVersionNewer(rel.TagName, AppVersion)
+
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"current_version": AppVersion,
+			"latest_version":  rel.TagName,
+			"has_update":      hasUpdate,
+			"release_name":    rel.Name,
+			"release_notes":   rel.Body,
+			"download_url":    downloadURL,
+			"html_url":        rel.HTMLURL,
+			"asset_name":      assetName,
+			"asset_size":      assetSize,
+		})
+	})
+
+	// /api/download-update - Stream download update installer and launch setup
+	mux.HandleFunc("/api/download-update", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.Method != http.MethodPost {
+			http.Error(w, `{"error":"POST required"}`, http.StatusBadRequest)
+			return
+		}
+
+		var body struct {
+			DownloadURL string `json:"download_url"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.DownloadURL == "" {
+			http.Error(w, `{"error":"Valid download_url required"}`, http.StatusBadRequest)
+			return
+		}
+
+		go func(urlStr string) {
+			updateDownloadStatus = "downloading"
+			updateDownloadPercent = 0
+			updateDownloadBytes = 0
+			updateDownloadTotal = 0
+			updateDownloadErr = ""
+
+			tempFile := filepath.Join(os.TempDir(), "VibeRAR_Setup_Update.exe")
+			out, err := os.Create(tempFile)
+			if err != nil {
+				updateDownloadStatus = "error"
+				updateDownloadErr = err.Error()
+				return
+			}
+			defer out.Close()
+
+			resp, err := http.Get(urlStr)
+			if err != nil {
+				updateDownloadStatus = "error"
+				updateDownloadErr = err.Error()
+				return
+			}
+			defer resp.Body.Close()
+
+			updateDownloadTotal = resp.ContentLength
+
+			buf := make([]byte, 32*1024)
+			var totalDownloaded int64
+			for {
+				n, readErr := resp.Body.Read(buf)
+				if n > 0 {
+					_, _ = out.Write(buf[:n])
+					totalDownloaded += int64(n)
+					updateDownloadBytes = totalDownloaded
+					if updateDownloadTotal > 0 {
+						updateDownloadPercent = int((totalDownloaded * 100) / updateDownloadTotal)
+					}
+				}
+				if readErr != nil {
+					if readErr == io.EOF {
+						break
+					}
+					updateDownloadStatus = "error"
+					updateDownloadErr = readErr.Error()
+					return
+				}
+			}
+
+			updateDownloadStatus = "done"
+			updateDownloadPercent = 100
+
+			// Launch the downloaded setup and terminate current app
+			time.Sleep(300 * time.Millisecond)
+			procShellExecuteW.Call(
+				0,
+				uintptr(unsafe.Pointer(utf16Ptr("open"))),
+				uintptr(unsafe.Pointer(utf16Ptr(tempFile))),
+				0, 0, 1,
+			)
+			time.Sleep(500 * time.Millisecond)
+			os.Exit(0)
+		}(body.DownloadURL)
+
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{"success": true})
+	})
+
+	// /api/update-status - Query current update download progress
+	mux.HandleFunc("/api/update-status", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"status":  updateDownloadStatus,
+			"percent": updateDownloadPercent,
+			"bytes":   updateDownloadBytes,
+			"total":   updateDownloadTotal,
+			"error":   updateDownloadErr,
+		})
+	})
+
+	// /api/repair-win11-menu - Explicitly repair and verify Windows 11 Modern Context Menu
+	mux.HandleFunc("/api/repair-win11-menu", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		var body struct {
+			RefreshExplorer bool `json:"refreshExplorer"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&body)
+
+		err := ensureWindows11ContextMenu()
+		if err != nil {
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+				"success": false,
+				"error":   err.Error(),
+			})
+			return
+		}
+
+		if body.RefreshExplorer {
+			go refreshWindowsExplorer()
+		}
+
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": true,
+			"message": "Windows 11 modern context menu integration was successfully repaired and registered!",
 		})
 	})
 

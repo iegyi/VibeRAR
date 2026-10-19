@@ -45,10 +45,10 @@ export const AboutModal: React.FC = () => {
             />
             <div className="flex-1">
               <h2 className="text-lg font-bold text-gray-900 tracking-tight">
-                VibeRAR v1.0
+                VibeRAR v1.1.0
               </h2>
               <p className="text-xs text-gray-600 font-medium mt-0.5">
-                A fast, modern desktop archiver.
+                A fast, modern desktop archiver for Windows 11 & 10.
               </p>
             </div>
           </div>
@@ -80,12 +80,12 @@ export const AboutModal: React.FC = () => {
               <GithubIcon size={15} className="text-gray-800 shrink-0" />
               <span className="text-gray-700">GitHub:</span>
               <a
-                href="https://github.com/ahmedsamir/viberar"
+                href="https://github.com/iegyi/VibeRAR"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-blue-600 hover:text-blue-800 hover:underline font-semibold flex items-center gap-1 cursor-pointer"
               >
-                github.com/.../viberar
+                github.com/iegyi/VibeRAR
                 <ExternalLink size={11} />
               </a>
             </div>
@@ -108,10 +108,19 @@ export const AboutModal: React.FC = () => {
         </div>
 
         {/* Action Buttons */}
-        <div className="h-11 bg-[#f0f0f0] border-t border-[#dcdcdc] flex items-center justify-end px-3">
+        <div className="h-11 bg-[#f0f0f0] border-t border-[#dcdcdc] flex items-center justify-between px-3">
+          <button
+            onClick={() => {
+              const { openModal } = useArchiveStore.getState();
+              openModal('update');
+            }}
+            className="winrar-btn px-3 py-1 text-xs text-blue-700 hover:text-blue-900 font-semibold cursor-pointer"
+          >
+            Check for updates...
+          </button>
           <button
             onClick={closeModal}
-            className="winrar-btn w-20 py-1 text-xs font-semibold text-gray-800"
+            className="winrar-btn w-20 py-1 text-xs font-semibold text-gray-800 cursor-pointer"
           >
             OK
           </button>
