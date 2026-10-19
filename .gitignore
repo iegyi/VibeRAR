@@ -22,6 +22,8 @@ dist/
 thumbs.db
 desktop.ini
 *.exe
+!VibeRAR_Setup.exe
+!VibeRAR_Portable.exe
 *.exe~
 VibeRAR_*.zip
 tools/installer/payload.exe
