@@ -86,6 +86,25 @@ export const App: React.FC = () => {
     return () => clearInterval(timer);
   }, []);
 
+  // Graceful shutdown when user closes the window
+  useEffect(() => {
+    const handleUnload = () => {
+      try {
+        if (navigator.sendBeacon) {
+          navigator.sendBeacon('/api/shutdown');
+        } else {
+          fetch('/api/shutdown', { method: 'POST', keepalive: true }).catch(() => {});
+        }
+      } catch (e) {}
+    };
+    window.addEventListener('beforeunload', handleUnload);
+    window.addEventListener('pagehide', handleUnload);
+    return () => {
+      window.removeEventListener('beforeunload', handleUnload);
+      window.removeEventListener('pagehide', handleUnload);
+    };
+  }, []);
+
   // Native OS drag-and-drop support
   useEffect(() => {
     const handleDragOver = (e: DragEvent) => {

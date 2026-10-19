@@ -106,7 +106,13 @@ func launchAppWindow(targetURL string) *exec.Cmd {
 		"--window-position=100,60",
 		"--no-first-run",
 		"--no-default-browser-check",
-		"--disable-features=Translate,OptimizationHints,MediaRouter,DialMediaRouteProvider,CalculateNativeWinOcclusion",
+		"--no-proxy-server",
+		"--disable-gpu",
+		"--disable-gpu-shader-disk-cache",
+		"--disable-software-rasterizer",
+		"--disk-cache-size=1",
+		"--media-cache-size=1",
+		"--disable-features=Translate,OptimizationHints,MediaRouter,DialMediaRouteProvider,CalculateNativeWinOcclusion,InterestFeedContentSuggestions",
 		"--disable-extensions",
 		"--disable-sync",
 		"--disable-background-networking",
@@ -115,6 +121,7 @@ func launchAppWindow(targetURL string) *exec.Cmd {
 		"--disable-breakpad",
 		"--disable-renderer-backgrounding",
 		"--disable-backgrounding-occluded-windows",
+		"--disable-background-timer-throttling",
 		"--app-id=VibeRAR.Desktop",
 		"--class=VibeRAR",
 	}
@@ -639,6 +646,16 @@ func main() {
 		_, _ = w.Write([]byte("pong"))
 	})
 
+	mux.HandleFunc("/api/shutdown", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("ok"))
+		go func() {
+			time.Sleep(150 * time.Millisecond)
+			os.Exit(0)
+		}()
+	})
+
 	// /api/compress - Real compression engine
 	mux.HandleFunc("/api/compress", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -791,11 +808,11 @@ func main() {
 
 	// Lifecycle Watchdog: Terminate backend if GUI window closes and heartbeat ceases
 	go func() {
-		time.Sleep(10 * time.Second)
+		time.Sleep(20 * time.Second)
 		for {
-			time.Sleep(2 * time.Second)
+			time.Sleep(5 * time.Second)
 			last := atomic.LoadInt64(&lastHeartbeat)
-			if last > 0 && time.Now().UnixMilli()-last > 7000 {
+			if last > 0 && time.Now().UnixMilli()-last > 120000 {
 				os.Exit(0)
 			}
 		}
@@ -837,8 +854,6 @@ func main() {
 	if cmd != nil {
 		if err := cmd.Start(); err == nil {
 			go superviseWindowTitle("VibeRAR - High Performance Archive Manager")
-			_ = cmd.Wait()
-			os.Exit(0)
 		}
 	} else {
 		procShellExecuteW.Call(
