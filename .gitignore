@@ -17,6 +17,9 @@ dist/
 *.obj
 *.pdb
 *.ilk
+*.lib
+*.exp
+*.pfx
 *.tmp
 *.log
 thumbs.db

@@ -1,0 +1,4 @@
+LIBRARY "viberar_shell.dll"
+EXPORTS
+    DllGetClassObject PRIVATE
+    DllCanUnloadNow PRIVATE

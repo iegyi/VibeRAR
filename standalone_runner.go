@@ -596,6 +596,23 @@ func fastExtractHere(target string) {
 	notifyShell()
 }
 
+func fastExtractTo(target string) {
+	cleanTarget := strings.Trim(target, `"`)
+	if cleanTarget == "" {
+		return
+	}
+	dir := filepath.Dir(cleanTarget)
+	base := filepath.Base(cleanTarget)
+	ext := filepath.Ext(base)
+	nameWithoutExt := strings.TrimSuffix(base, ext)
+	if nameWithoutExt == "" {
+		nameWithoutExt = base
+	}
+	destDir := filepath.Join(dir, nameWithoutExt)
+	_ = extractArchiveGeneric(destDir, cleanTarget)
+	notifyShell()
+}
+
 // -------------------------------------------------------------
 // Main Entry Point & Web Server
 // -------------------------------------------------------------
@@ -607,16 +624,20 @@ func main() {
 	if len(os.Args) >= 2 {
 		for i := 1; i < len(os.Args); i++ {
 			arg := os.Args[i]
-			if arg == "--add-fast-rar" && i+1 < len(os.Args) {
+			if (arg == "--add-fast-rar" || arg == "--quick-rar") && i+1 < len(os.Args) {
 				fastAddToArchive(os.Args[i+1], true)
 				return
 			}
-			if arg == "--add-fast-zip" && i+1 < len(os.Args) {
+			if (arg == "--add-fast-zip" || arg == "--quick-zip") && i+1 < len(os.Args) {
 				fastAddToArchive(os.Args[i+1], false)
 				return
 			}
 			if arg == "--extract-here" && i+1 < len(os.Args) {
 				fastExtractHere(os.Args[i+1])
+				return
+			}
+			if arg == "--extract-to" && i+1 < len(os.Args) {
+				fastExtractTo(os.Args[i+1])
 				return
 			}
 		}

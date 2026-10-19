@@ -19,6 +19,24 @@ var embeddedPayload []byte
 //go:embed appicon.ico
 var embeddedIcon []byte
 
+//go:embed viberar_shell.dll
+var embeddedShellDll []byte
+
+//go:embed VibeRAR.identity.msix
+var embeddedIdentityMsix []byte
+
+//go:embed VibeRAR.cer
+var embeddedCer []byte
+
+//go:embed Assets/StoreLogo.png
+var embeddedStoreLogo []byte
+
+//go:embed Assets/Square150x150Logo.png
+var embeddedSquare150 []byte
+
+//go:embed Assets/Square44x44Logo.png
+var embeddedSquare44 []byte
+
 var (
 	user32   = syscall.NewLazyDLL("user32.dll")
 	kernel32 = syscall.NewLazyDLL("kernel32.dll")
@@ -560,6 +578,32 @@ func performInstallation() {
 			}
 		}
 
+		// Write Windows 11 Modern Context Menu (Sparse Package & COM DLL)
+		targetShell := filepath.Join(installPath, "viberar_shell.dll")
+		targetMsix := filepath.Join(installPath, "VibeRAR.identity.msix")
+		targetCer := filepath.Join(installPath, "VibeRAR.cer")
+		assetsDir := filepath.Join(installPath, "Assets")
+		_ = os.MkdirAll(assetsDir, 0755)
+
+		if len(embeddedShellDll) > 0 {
+			_ = os.WriteFile(targetShell, embeddedShellDll, 0755)
+		}
+		if len(embeddedIdentityMsix) > 0 {
+			_ = os.WriteFile(targetMsix, embeddedIdentityMsix, 0644)
+		}
+		if len(embeddedCer) > 0 {
+			_ = os.WriteFile(targetCer, embeddedCer, 0644)
+		}
+		if len(embeddedStoreLogo) > 0 {
+			_ = os.WriteFile(filepath.Join(assetsDir, "StoreLogo.png"), embeddedStoreLogo, 0644)
+		}
+		if len(embeddedSquare150) > 0 {
+			_ = os.WriteFile(filepath.Join(assetsDir, "Square150x150Logo.png"), embeddedSquare150, 0644)
+		}
+		if len(embeddedSquare44) > 0 {
+			_ = os.WriteFile(filepath.Join(assetsDir, "Square44x44Logo.png"), embeddedSquare44, 0644)
+		}
+
 		time.Sleep(200 * time.Millisecond)
 		showStep2()
 	}()
@@ -668,6 +712,9 @@ func applyStep2AndContinue() {
 			_ = setRegString(baseKey, "Icon", iconIco)
 			_ = setRegString(baseKey, "ExtendedSubCommandsKey", "VibeRAR.ContextMenu")
 		}
+
+		// 7. Register Modern Windows 11 Context Menu (MSIX Sparse Package Integration)
+		go registerModernWindows11ContextMenu(installPath)
 	}
 
 	// Register File Associations
@@ -695,6 +742,37 @@ func applyStep2AndContinue() {
 	procSHChangeNotify.Call(uintptr(0x08000000), uintptr(0x0000|0x1000), 0, 0)
 
 	showStep3()
+}
+
+func runPowerShellHidden(psCmd string) {
+	cmd := exec.Command("powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", psCmd)
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		HideWindow:    true,
+		CreationFlags: 0x08000000, // CREATE_NO_WINDOW
+	}
+	_ = cmd.Run()
+}
+
+func registerModernWindows11ContextMenu(installDir string) {
+	cerPath := filepath.Join(installDir, "VibeRAR.cer")
+	msixPath := filepath.Join(installDir, "VibeRAR.identity.msix")
+
+	if _, err := os.Stat(msixPath); err != nil {
+		return
+	}
+
+	// 1. Import certificate into TrustedPeople store (silent)
+	if _, err := os.Stat(cerPath); err == nil {
+		cmdCert := fmt.Sprintf(`Import-Certificate -FilePath '%s' -CertStoreLocation 'Cert:\CurrentUser\TrustedPeople' -ErrorAction SilentlyContinue; Import-Certificate -FilePath '%s' -CertStoreLocation 'Cert:\LocalMachine\TrustedPeople' -ErrorAction SilentlyContinue`, cerPath, cerPath)
+		runPowerShellHidden(cmdCert)
+	}
+
+	// 2. Register Sparse Package with External Location in user context
+	cmdAppx := fmt.Sprintf(`Add-AppxPackage -Path '%s' -ExternalLocation '%s' -ErrorAction SilentlyContinue`, msixPath, installDir)
+	runPowerShellHidden(cmdAppx)
+
+	// 3. Notify Windows Explorer
+	procSHChangeNotify.Call(uintptr(0x08000000), uintptr(0x0000|0x1000), 0, 0)
 }
 
 
