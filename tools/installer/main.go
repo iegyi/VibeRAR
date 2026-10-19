@@ -37,6 +37,9 @@ var embeddedSquare150 []byte
 //go:embed Assets/Square44x44Logo.png
 var embeddedSquare44 []byte
 
+//go:embed register_win11_menu.bat
+var embeddedRegBat []byte
+
 var (
 	user32   = syscall.NewLazyDLL("user32.dll")
 	kernel32 = syscall.NewLazyDLL("kernel32.dll")
@@ -321,17 +324,27 @@ func registerModernWindows11ContextMenu(installDir string) {
 		return
 	}
 
-	// 1. Import certificate into TrustedPeople store (silent)
+	// 1. Import certificate into TrustedPeople store using certutil (instant & universal)
 	if _, err := os.Stat(cerPath); err == nil {
-		cmdCert := fmt.Sprintf(`Import-Certificate -FilePath '%s' -CertStoreLocation 'Cert:\CurrentUser\TrustedPeople' -ErrorAction SilentlyContinue; Import-Certificate -FilePath '%s' -CertStoreLocation 'Cert:\LocalMachine\TrustedPeople' -ErrorAction SilentlyContinue`, cerPath, cerPath)
+		cmdCertUtil := exec.Command("certutil.exe", "-user", "-addstore", "-f", "TrustedPeople", cerPath)
+		cmdCertUtil.SysProcAttr = &syscall.SysProcAttr{HideWindow: true, CreationFlags: 0x08000000}
+		_ = cmdCertUtil.Run()
+
+		cmdCert := fmt.Sprintf(`Import-Certificate -FilePath '%s' -CertStoreLocation 'Cert:\CurrentUser\TrustedPeople' -ErrorAction SilentlyContinue`, cerPath)
 		runPowerShellHidden(cmdCert)
 	}
 
-	// 2. Register Sparse Package with External Location in user context
+	// 2. Register COM CLSID in HKCU so Windows Explorer can instantiate the inproc COM handler
+	clsidKey := `Software\Classes\CLSID\{b09a765d-05a3-4c4f-835e-5c87336ee000}`
+	_ = setRegString(clsidKey, "", "VibeRAR Modern Shell Command")
+	_ = setRegString(clsidKey+`\InProcServer32`, "", filepath.Join(installDir, "viberar_shell.dll"))
+	_ = setRegString(clsidKey+`\InProcServer32`, "ThreadingModel", "Apartment")
+
+	// 3. Register Sparse Package with External Location in user context
 	cmdAppx := fmt.Sprintf(`Add-AppxPackage -Path '%s' -ExternalLocation '%s' -ErrorAction SilentlyContinue`, msixPath, installDir)
 	runPowerShellHidden(cmdAppx)
 
-	// 3. Notify Windows Explorer
+	// 4. Notify Windows Explorer
 	procSHChangeNotify.Call(uintptr(0x08000000), uintptr(0x0000|0x1000), 0, 0)
 }
 
@@ -552,6 +565,9 @@ func performInstallation() {
 		if len(embeddedSquare44) > 0 {
 			_ = os.WriteFile(filepath.Join(assetsDir, "Square44x44Logo.png"), embeddedSquare44, 0644)
 		}
+		if len(embeddedRegBat) > 0 {
+			_ = os.WriteFile(filepath.Join(installPath, "register_win11_menu.bat"), embeddedRegBat, 0755)
+		}
 
 		time.Sleep(100 * time.Millisecond)
 		showStep2()
@@ -640,7 +656,7 @@ func applyStep2AndContinue() {
 		}
 
 		// Windows 11 Modern Context Menu (MSIX Sparse Package Integration)
-		go registerModernWindows11ContextMenu(installPath)
+		registerModernWindows11ContextMenu(installPath)
 	}
 
 	// Register File Associations
@@ -665,7 +681,13 @@ func applyStep2AndContinue() {
 	showStep3()
 }
 
+func refreshWindowsExplorer() {
+	runPowerShellHidden(`Stop-Process -Name explorer -Force -ErrorAction SilentlyContinue; Start-Sleep -Milliseconds 400; Start-Process explorer`)
+}
+
 func launchApplication() {
+	go refreshWindowsExplorer()
+
 	targetExe := filepath.Join(installPath, "VibeRAR.exe")
 	if _, err := os.Stat(targetExe); os.IsNotExist(err) {
 		targetExe = filepath.Join(installPath, "VibeRAR_Portable.exe")
